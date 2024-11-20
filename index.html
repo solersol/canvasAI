@@ -1,0 +1,979 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CanvasAI</title>
+    <script src="js/react.development.js"></script>
+    <script src="js/react-dom.development.js"></script>
+    <script src="js/babel.min.js"></script>
+    <link href="css/tailwind.min.css" rel="stylesheet">
+    <style>
+        body, html {
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .nav-bar {
+            height: 60px;
+            padding: 0 1rem;
+            display: flex;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #000;
+            z-index: 1000;
+            border-bottom: 1px solid #27272a;
+        }
+
+        .content-area {
+            height: calc(100vh - 60px);
+            margin-top: 60px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .page {
+            height: 100%;
+            width: 100%;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            position: absolute;
+            overflow: auto;
+        }
+
+        .page.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        @keyframes slideIn {
+            0% {
+                opacity: 0;
+                transform: translateY(-100%);
+            }
+            60% {
+                opacity: 1;
+                transform: translateY(10%);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes highlight {
+            0% {
+                box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(168, 85, 247, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(168, 85, 247, 0);
+            }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .highlight {
+            animation: highlight 2s ease-in-out infinite;
+        }
+
+        .icon {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #27272a;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #ffffff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .nav-button {
+            background: #27272a;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-right: 0.5rem;
+        }
+
+        .nav-button:hover {
+            background: #3f3f46;
+        }
+
+        .nav-button.active {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+        .custom-scrollbar {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-bar">
+        <button class="nav-button active" onclick="showPage('home')">Home</button>
+        <button class="nav-button" onclick="showPage('generator')">Art Generator</button>
+        <button class="nav-button" onclick="showPage('gallery')">Gallery</button>
+    </nav>
+
+    <div class="content-area">
+        <div id="home-page" class="page active"></div>
+        <div id="generator-page" class="page"></div>
+        <div id="gallery-page" class="page"></div>
+    </div>
+
+    <script>
+        function showPage(pageId) {
+            document.querySelectorAll('.nav-button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.innerText.toLowerCase().includes(pageId)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(`${pageId}-page`).classList.add('active');
+        }
+    </script>
+
+    <!-- Icon Component -->
+    <script type="text/babel">
+        const Icon = ({ name, className = "w-6 h-6" }) => {
+            const icons = {
+                palette: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="6"/>
+                        <circle cx="12" cy="12" r="2"/>
+                    </svg>
+                ),
+                play: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                ),
+                users: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                ),
+                volume: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    </svg>
+                ),
+                share: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <circle cx="18" cy="5" r="3"/>
+                        <circle cx="6" cy="12" r="3"/>
+                        <circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                ),
+                heart: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                ),
+                copy: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                ),
+                twitter: (
+                    <svg className={`${className} icon`} viewBox="0 0 24 24">
+                        <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/>
+                    </svg>
+                )
+            };
+            
+            return icons[name] || null;
+        };
+    </script>
+<!-- HomePage Component -->
+    <script type="text/babel">
+        const HomePage = () => {
+            const [isMuted, setIsMuted] = React.useState(true);
+
+            const generateRandomShape = () => {
+                const shapes = [
+                    () => ({
+                        type: 'circle',
+                        cx: Math.random() * 100,
+                        cy: Math.random() * 100,
+                        r: 5 + Math.random() * 20,
+                        fill: `rgba(255, 255, 255, ${0.1 + Math.random() * 0.3})`,
+                        opacity: 0.4 + Math.random() * 0.6
+                    }),
+                    () => ({
+                        type: 'path',
+                        d: `M ${Math.random() * 100} ${Math.random() * 100} 
+                            Q ${Math.random() * 100} ${Math.random() * 100},
+                            ${Math.random() * 100} ${Math.random() * 100}`,
+                        stroke: '#FFFFFF',
+                        strokeWidth: 0.5 + Math.random() * 2,
+                        fill: 'none',
+                        opacity: 0.3 + Math.random() * 0.4
+                    }),
+                    () => ({
+                        type: 'rect',
+                        x: Math.random() * 100,
+                        y: Math.random() * 100,
+                        width: 5 + Math.random() * 30,
+                        height: 5 + Math.random() * 30,
+                        fill: `rgba(255, 255, 255, ${0.1 + Math.random() * 0.3})`,
+                        opacity: 0.3 + Math.random() * 0.5
+                    })
+                ];
+                return shapes[Math.floor(Math.random() * shapes.length)]();
+            };
+
+            const ArtPreview = () => {
+                const [shapes, setShapes] = React.useState([]);
+                
+                React.useEffect(() => {
+                    const interval = setInterval(() => {
+                        setShapes(prevShapes => {
+                            const newShapes = [...prevShapes, generateRandomShape()];
+                            if (newShapes.length > 25) newShapes.shift();
+                            return newShapes;
+                        });
+                    }, 600);
+                    
+                    return () => clearInterval(interval);
+                }, []);
+
+                return React.createElement('svg', { 
+                    viewBox: "0 0 100 100",
+                    className: "w-full h-full"
+                },
+                    React.createElement('rect', {
+                        width: 100,
+                        height: 100,
+                        fill: "#0A0A0A"
+                    }),
+                    shapes.map((shape, index) => {
+                        switch (shape.type) {
+                            case 'circle':
+                                return React.createElement('circle', { key: index, ...shape });
+                            case 'path':
+                                return React.createElement('path', { key: index, ...shape });
+                            case 'rect':
+                                return React.createElement('rect', { key: index, ...shape });
+                            default:
+                                return null;
+                        }
+                    })
+                );
+            };
+
+            return React.createElement('div', { 
+                className: "h-full bg-black text-white flex flex-col" 
+            },
+                React.createElement('div', { 
+                    className: "flex-grow flex flex-col items-center justify-center px-4 py-8"
+                },
+                    // Hero Text
+                    React.createElement('div', { 
+                        className: "text-center mb-8 max-w-3xl mx-auto"
+                    },
+                        React.createElement('h1', { 
+                            className: "text-5xl md:text-7xl font-extralight mb-4 tracking-tight"
+                        }, 
+                            "Create ",
+                            React.createElement('span', {
+                                className: "font-normal"
+                            }, "Abstract"),
+                            " Art"
+                        ),
+                        React.createElement('p', {
+                            className: "text-lg text-zinc-400 tracking-wide"
+                        }, "Procedural AI Abstract Artwork Generation with $CANVAS")
+                    ),
+
+                    // Art Preview
+                    React.createElement('div', {
+                        className: "relative w-full max-w-2xl aspect-square mb-8 rounded-lg overflow-hidden border border-zinc-900"
+                    },
+                        React.createElement(ArtPreview),
+                        React.createElement('div', {
+                            className: "absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"
+                        })
+                    ),
+
+                    // Action Buttons
+                    React.createElement('div', {
+                        className: "flex flex-col md:flex-row gap-4"
+                    },
+                        React.createElement('button', {
+                            onClick: () => showPage('generator'),
+                            className: "group flex items-center px-8 py-4 bg-white text-black hover:bg-zinc-100 rounded-full text-lg font-medium transition-colors"
+                        },
+                            React.createElement(Icon, {
+                                name: "play",
+                                className: "w-5 h-5 mr-2 transition-transform group-hover:scale-110"
+                            }),
+                            "Create Your Art"
+                        ),
+                        React.createElement('button', {
+                            onClick: () => showPage('gallery'),
+                            className: "flex items-center px-8 py-4 border border-zinc-800 hover:bg-zinc-900 rounded-full text-lg font-medium transition-colors"
+                        },
+                            React.createElement(Icon, {
+                                name: "users",
+                                className: "w-5 h-5 mr-2"
+                            }),
+                            "Explore Gallery"
+                        )
+                    )
+                ),
+
+                // Features Footer
+                React.createElement('div', {
+                    className: "border-t border-zinc-900 py-8"
+                },
+                    React.createElement('div', {
+                        className: "container mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8"
+                    },
+                        ['AI Generation', 'Easy Sharing', 'Community'].map((feature, index) =>
+                            React.createElement('div', {
+                                key: index,
+                                className: "text-center p-4 hover:bg-zinc-900/50 rounded-2xl transition-colors"
+                            },
+                                React.createElement(Icon, {
+                                    name: index === 0 ? "palette" : index === 1 ? "share" : "users",
+                                    className: "w-8 h-8 mx-auto mb-3 text-zinc-400"
+                                }),
+                                React.createElement('h3', {
+                                    className: "text-lg font-medium mb-2"
+                                }, feature),
+                                React.createElement('p', {
+                                    className: "text-sm text-zinc-400"
+                                }, index === 0 ? "Create unique artworks powered by advanced algorithms" :
+                                   index === 1 ? "Share your creations instantly on social media" :
+                                   "Join other artists and collaborate in real-time")
+                            )
+                        )
+                    )
+                )
+            );
+        };
+
+        // Render HomePage
+        ReactDOM.render(
+            React.createElement(HomePage),
+            document.getElementById('home-page')
+        );
+    </script>
+<!-- ArtGenerator Component -->
+    <script type="text/babel">
+        const ArtGenerator = () => {
+            const [settings, setSettings] = React.useState({
+                complexity: 0.5,
+                layering: 0.5,
+                contrast: 0.7,
+                density: 0.5,
+                scale: 0.5
+            });
+            
+            const [shapes, setShapes] = React.useState([]);
+            const [activeEffect, setActiveEffect] = React.useState('none');
+            const [currentArtwork, setCurrentArtwork] = React.useState(null);
+
+            const generateSolAddress = () => {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                return Array(7).fill(0).map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
+            };
+
+            const EFFECTS = {
+                none: { 
+                    name: 'Original', 
+                    color: 'zinc'
+                },
+                glow: { 
+                    name: 'Neon', 
+                    color: 'purple',
+                    filter: React.createElement('filter', { id: 'filter-glow' },
+                        React.createElement('feGaussianBlur', {
+                            stdDeviation: "2",
+                            result: "blur"
+                        }),
+                        React.createElement('feColorMatrix', {
+                            in: "blur",
+                            type: "matrix",
+                            values: "2 0 0 0 0 0 2 0 0 0 0 0 4 0 0 0 0 0 12 -3"
+                        }),
+                        React.createElement('feComposite', {
+                            in: "SourceGraphic",
+                            operator: "over"
+                        })
+                    )
+                },
+                glitch: {
+                    name: 'Glitch',
+                    color: 'red',
+                    filter: React.createElement('filter', { id: 'filter-glitch' },
+                        React.createElement('feFlood', {
+                            floodColor: "#ff0066",
+                            floodOpacity: "0.3",
+                            result: "flood"
+                        }),
+                        React.createElement('feComposite', {
+                            operator: "in",
+                            in2: "SourceGraphic",
+                            in: "flood"
+                        }),
+                        React.createElement('feOffset', {
+                            dx: "3",
+                            dy: "-3"
+                        }),
+                        React.createElement('feMerge', null,
+                            React.createElement('feMergeNode'),
+                            React.createElement('feMergeNode', { in: "SourceGraphic" })
+                        )
+                    )
+                },
+                wave: {
+                    name: 'Wave',
+                    color: 'blue',
+                    filter: React.createElement('filter', { id: 'filter-wave' },
+                        React.createElement('feTurbulence', {
+                            type: "fractalNoise",
+                            baseFrequency: "0.01",
+                            numOctaves: "3",
+                            result: "turbulence"
+                        }),
+                        React.createElement('feDisplacementMap', {
+                            in: "SourceGraphic",
+                            in2: "turbulence",
+                            scale: "15",
+                            xChannelSelector: "R",
+                            yChannelSelector: "G"
+                        })
+                    )
+                }
+            };
+
+            const generateShapes = () => {
+                const shapes = [];
+                const numShapes = Math.floor(10 + (settings.density * 40));
+                
+                for (let i = 0; i < numShapes; i++) {
+                    if (Math.random() < 0.4) {
+                        shapes.push({
+                            type: 'circle',
+                            cx: Math.random() * 100,
+                            cy: Math.random() * 100,
+                            r: 2 + (settings.scale * 10),
+                            fill: `rgba(255, 255, 255, ${0.1 + (settings.contrast * 0.5)})`,
+                            opacity: 0.2 + (settings.layering * 0.5)
+                        });
+                    } else if (Math.random() < 0.7) {
+                        const x = Math.random() * 100;
+                        const y = Math.random() * 100;
+                        shapes.push({
+                            type: 'path',
+                            d: `M ${x} ${y} 
+                                Q ${x + (Math.random() - 0.5) * 50} ${y + (Math.random() - 0.5) * 50},
+                                  ${x + (Math.random() - 0.5) * 50} ${y + (Math.random() - 0.5) * 50}`,
+                            stroke: 'white',
+                            strokeWidth: 0.5 + (settings.complexity * 2),
+                            fill: 'none',
+                            opacity: 0.2 + (settings.layering * 0.5)
+                        });
+                    } else {
+                        shapes.push({
+                            type: 'rect',
+                            x: Math.random() * 100,
+                            y: Math.random() * 100,
+                            width: 5 + (settings.scale * 15),
+                            height: 5 + (settings.scale * 15),
+                            fill: `rgba(255, 255, 255, ${0.1 + (settings.contrast * 0.5)})`,
+                            opacity: 0.2 + (settings.layering * 0.5)
+                        });
+                    }
+                }
+                setShapes(shapes);
+                setCurrentArtwork({
+                    id: Math.random().toString(36).substr(2, 9),
+                    shapes: shapes,
+                    effect: activeEffect
+                });
+                return shapes;
+            };
+
+            const shareToGallery = () => {
+                if (!currentArtwork) {
+                    alert('Generate an artwork first!');
+                    return;
+                }
+                
+                const galleryArtwork = {
+                    ...currentArtwork,
+                    creator: `${generateSolAddress()}...`,
+                    likes: 0,
+                    isLiked: false,
+                    createdAt: Date.now(),
+                    isHighlighted: true
+                };
+                
+                window.dispatchEvent(new CustomEvent('addToGallery', { 
+                    detail: galleryArtwork 
+                }));
+                
+                showPage('gallery');
+                setTimeout(() => {
+                    alert('Artwork shared to gallery successfully!');
+                }, 100);
+            };
+
+            const copyArtwork = async () => {
+                if (!currentArtwork) {
+                    alert('Generate an artwork first!');
+                    return;
+                }
+
+                try {
+                    const svg = document.querySelector('.art-canvas').cloneNode(true);
+                    const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' });
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            'image/svg+xml': blob
+                        })
+                    ]);
+                    alert('Artwork copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                    alert('Failed to copy artwork. Try a different browser or method.');
+                }
+            };
+
+            const shareToTwitter = () => {
+                if (!currentArtwork) {
+                    alert('Generate an artwork first!');
+                    return;
+                }
+
+                const tweetText = encodeURIComponent(
+                    "Check out my abstracted artwork created with CanvasAI! 🎨✨"
+                );
+                window.open(`https://twitter.com/intent/tweet?text=${tweetText}`, '_blank');
+            };
+
+            const Canvas = () => (
+                React.createElement('svg', {
+                    viewBox: "0 0 100 100",
+                    className: "w-full h-full art-canvas"
+                },
+                    React.createElement('defs', null,
+                        Object.entries(EFFECTS).map(([key, effect]) => 
+                            effect.filter && React.cloneElement(effect.filter, { key })
+                        )
+                    ),
+                    React.createElement('rect', {
+                        width: 100,
+                        height: 100,
+                        fill: "#0A0A0A"
+                    }),
+                    React.createElement('g', {
+                        filter: activeEffect !== 'none' ? `url(#filter-${activeEffect})` : undefined
+                    }, shapes.map((shape, index) => {
+                        switch (shape.type) {
+                            case 'circle':
+                                return React.createElement('circle', { key: index, ...shape });
+                            case 'path':
+                                return React.createElement('path', { key: index, ...shape });
+                            case 'rect':
+                                return React.createElement('rect', { key: index, ...shape });
+                            default:
+                                return null;
+                        }
+                    }))
+                )
+            );
+
+            return React.createElement('div', {
+                className: "h-full bg-black text-white flex"
+            },
+                // Controls Panel
+                React.createElement('div', {
+                    className: "w-72 border-r border-zinc-900 flex flex-col overflow-auto custom-scrollbar"
+                },
+                    React.createElement('div', {
+                        className: "p-6 flex flex-col gap-6"
+                    },
+                        // Effects Section
+                        React.createElement('h2', {
+                            className: "text-xl font-medium"
+                        }, "Effects"),
+                        React.createElement('div', {
+                            className: "grid grid-cols-2 gap-3"
+                        },
+                            Object.entries(EFFECTS).map(([key, effect]) =>
+                                React.createElement('button', {
+                                    key,
+                                    onClick: () => setActiveEffect(key),
+                                    className: `flex flex-col items-center p-3 rounded-lg transition-colors ${
+                                        activeEffect === key 
+                                            ? 'bg-white text-black' 
+                                            : 'bg-zinc-900 hover:bg-zinc-800'
+                                    }`
+                                },
+                                    React.createElement('span', {
+                                        className: "text-sm font-medium"
+                                    }, effect.name)
+                                )
+                            )
+                        ),
+
+                        // Controls Section
+                        React.createElement('h2', {
+                            className: "text-xl font-medium pt-4"
+                        }, "Controls"),
+                        React.createElement('div', {
+                            className: "space-y-6"
+                        },
+                            Object.entries(settings).map(([key, value]) =>
+                                React.createElement('div', {
+                                    key,
+                                    className: "space-y-2"
+                                },
+                                    React.createElement('div', {
+                                        className: "flex justify-between text-sm"
+                                    },
+                                        React.createElement('span', {
+                                            className: "text-zinc-400 capitalize"
+                                        }, key),
+                                        React.createElement('span', {
+                                            className: "text-zinc-500"
+                                        }, `${Math.round(value * 100)}%`)
+                                    ),
+                                    React.createElement('input', {
+                                        type: "range",
+                                        min: "0",
+                                        max: "1",
+                                        step: "0.01",
+                                        value,
+                                        onChange: (e) => setSettings({
+                                            ...settings,
+                                            [key]: parseFloat(e.target.value)
+                                        })
+                                    })
+                                )
+                            )
+                        ),
+
+                        // Generate Button
+                        React.createElement('button', {
+                            onClick: generateShapes,
+                            className: "w-full py-4 bg-white text-black rounded-lg font-medium hover:bg-zinc-100 transition-colors"
+                        }, "Generate Artwork")
+                    )
+                ),
+
+                // Canvas Area
+                React.createElement('div', {
+                    className: "flex-1 p-6 flex flex-col"
+                },
+                    React.createElement('div', {
+                        className: "flex-1 aspect-square border border-zinc-900 rounded-lg overflow-hidden"
+                    },
+                        React.createElement(Canvas)
+                    ),
+                    
+                    // Share Buttons
+                    React.createElement('div', {
+                        className: "flex justify-end gap-4 mt-4"
+                    },
+                        React.createElement('button', {
+                            onClick: copyArtwork,
+                            className: "px-4 py-2 bg-zinc-900 hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2"
+                        },
+                            React.createElement(Icon, {
+                                name: "copy",
+                                className: "w-4 h-4"
+                            }),
+                            "Copy Art"
+                        ),
+                        React.createElement('button', {
+                            onClick: shareToGallery,
+                            className: "px-4 py-2 bg-zinc-900 hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2"
+                        },
+                            React.createElement(Icon, {
+                                name: "share",
+                                className: "w-4 h-4"
+                            }),
+                            "Share to Gallery"
+                        ),
+                        React.createElement('button', {
+                            onClick: shareToTwitter,
+                            className: "px-4 py-2 bg-[#1DA1F2] hover:bg-[#1a8cd8] rounded-lg transition-colors flex items-center gap-2"
+                        },
+                            React.createElement(Icon, {
+                                name: "twitter",
+                                className: "w-4 h-4"
+                            }),
+                            "Share to Twitter"
+                        )
+                    )
+                )
+            );
+        };
+
+        // Render ArtGenerator
+        ReactDOM.render(
+            React.createElement(ArtGenerator),
+            document.getElementById('generator-page')
+        );
+    </script>
+<!-- Gallery Component -->
+    <script type="text/babel">
+        const GalleryComponent = () => {
+            const [artworks, setArtworks] = React.useState([]);
+            const [sharedArtworks, setSharedArtworks] = React.useState(new Set());
+
+            const generateArt = (settings = {
+                complexity: Math.random(),
+                layering: Math.random(),
+                contrast: Math.random(),
+                density: Math.random(),
+                scale: Math.random()
+            }) => {
+                const shapes = [];
+                const numShapes = Math.floor(10 + (settings.density * 20));
+                
+                for (let i = 0; i < numShapes; i++) {
+                    if (Math.random() < 0.4) {
+                        shapes.push({
+                            type: 'circle',
+                            cx: Math.random() * 100,
+                            cy: Math.random() * 100,
+                            r: 2 + (settings.scale * 10),
+                            fill: `rgba(255, 255, 255, ${0.1 + (settings.contrast * 0.5)})`,
+                            opacity: 0.2 + (settings.layering * 0.5)
+                        });
+                    } else if (Math.random() < 0.7) {
+                        const x = Math.random() * 100;
+                        const y = Math.random() * 100;
+                        shapes.push({
+                            type: 'path',
+                            d: `M ${x} ${y} 
+                                Q ${x + 30} ${y + (Math.random() - 0.5) * 40},
+                                  ${x + 60} ${y}`,
+                            stroke: 'white',
+                            strokeWidth: 0.5 + (settings.complexity * 2),
+                            fill: 'none',
+                            opacity: 0.2 + (settings.layering * 0.5)
+                        });
+                    } else {
+                        shapes.push({
+                            type: 'rect',
+                            x: Math.random() * 100,
+                            y: Math.random() * 100,
+                            width: 5 + (settings.scale * 15),
+                            height: 5 + (settings.scale * 15),
+                            fill: `rgba(255, 255, 255, ${0.1 + (settings.contrast * 0.5)})`,
+                            opacity: 0.2 + (settings.layering * 0.5)
+                        });
+                    }
+                }
+                return shapes;
+            };
+
+            const generateSolAddress = () => {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                return Array(7).fill(0).map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
+            };
+
+            const generateNewArtwork = React.useCallback(() => ({
+                id: Math.random().toString(36).substr(2, 9),
+                creator: `${generateSolAddress()}...`,
+                likes: Math.floor(Math.random() * 8),
+                isLiked: false,
+                createdAt: Date.now(),
+                shapes: generateArt()
+            }), []);
+
+            const ArtworkTile = React.memo(({ artwork, index }) => {
+                const [isLiked, setIsLiked] = React.useState(artwork.isLiked);
+                const [likes, setLikes] = React.useState(artwork.likes);
+                const isNew = Date.now() - artwork.createdAt < 1000;
+                const isShared = sharedArtworks.has(artwork.id);
+
+                return React.createElement('div', {
+                    className: `relative group ${isNew ? 'animate-slide-in' : ''} ${
+                        isShared ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-black rounded-lg highlight' : ''
+                    }`,
+                    style: { 
+                        animationDelay: `${index % 7 * 100}ms`,
+                        height: '100%'
+                    }
+                },
+                    React.createElement('svg', {
+                        viewBox: "0 0 100 100",
+                        className: "w-full h-full bg-zinc-900 rounded-lg"
+                    },
+                        React.createElement('rect', {
+                            width: 100,
+                            height: 100,
+                            fill: "#0A0A0A"
+                        }),
+                        artwork.shapes.map((shape, idx) => {
+                            switch (shape.type) {
+                                case 'circle':
+                                    return React.createElement('circle', { key: idx, ...shape });
+                                case 'path':
+                                    return React.createElement('path', { key: idx, ...shape });
+                                case 'rect':
+                                    return React.createElement('rect', { key: idx, ...shape });
+                                default:
+                                    return null;
+                            }
+                        })
+                    ),
+                    React.createElement('div', {
+                        className: "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-lg"
+                    },
+                        React.createElement('div', {
+                            className: "absolute bottom-2 left-2 right-2 text-xs"
+                        },
+                            React.createElement('p', {
+                                className: "text-white/80 truncate"
+                            }, artwork.creator),
+                            React.createElement('button', {
+                                onClick: () => {
+                                    setIsLiked(!isLiked);
+                                    setLikes(prev => isLiked ? prev - 1 : prev + 1);
+                                },
+                                className: "flex items-center mt-1 group/like"
+                            },
+                                React.createElement(Icon, {
+                                    name: "heart",
+                                    className: `w-3 h-3 mr-1 transition-colors ${
+                                        isLiked ? 'text-red-500 fill-red-500' : 'text-white/60'
+                                    }`
+                                }),
+                                React.createElement('span', {
+                                    className: isLiked ? 'text-red-500' : 'text-white/60'
+                                }, likes)
+                            )
+                        )
+                    )
+                );
+            });
+
+            // Handle new shared artworks
+            React.useEffect(() => {
+                const handleNewArtwork = (event) => {
+                    const newArtwork = event.detail;
+                    setArtworks(prev => [newArtwork, ...prev]);
+                    setSharedArtworks(prev => new Set(prev).add(newArtwork.id));
+                    
+                    // Remove highlight after 5 seconds
+                    setTimeout(() => {
+                        setSharedArtworks(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(newArtwork.id);
+                            return newSet;
+                        });
+                    }, 5000);
+                };
+
+                window.addEventListener('addToGallery', handleNewArtwork);
+                return () => window.removeEventListener('addToGallery', handleNewArtwork);
+            }, []);
+
+            // Initial artworks and periodic updates
+            React.useEffect(() => {
+                setArtworks(Array(21).fill(null).map(() => ({
+                    ...generateNewArtwork(),
+                    createdAt: Date.now() - 3000
+                })));
+
+                const interval = setInterval(() => {
+                    const newArtwork = generateNewArtwork();
+                    setArtworks(prev => [newArtwork, ...prev].slice(0, 35));
+                }, 12000);
+
+                return () => clearInterval(interval);
+            }, [generateNewArtwork]);
+
+            return React.createElement('div', {
+                className: "h-full bg-black text-white overflow-auto custom-scrollbar"
+            },
+                React.createElement('div', {
+                    className: "p-4"
+                },
+                    React.createElement('div', {
+                        className: "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3 auto-rows-[100px]"
+                    }, 
+                        artworks.map((artwork, index) =>
+                            React.createElement(ArtworkTile, {
+                                key: artwork.id,
+                                artwork,
+                                index
+                            })
+                        )
+                    )
+                )
+            );
+        };
+
+        // Render Gallery
+        ReactDOM.render(
+            React.createElement(GalleryComponent),
+            document.getElementById('gallery-page')
+        );
+
+        // Initialize the first page
+        document.addEventListener('DOMContentLoaded', () => {
+            showPage('home');
+        });
+    </script>
+
+
+</body></html>
