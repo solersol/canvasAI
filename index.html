@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
@@ -12,7 +14,17 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
-            background: #000;
+            
+        }
+
+        .background-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
         }
 
         .nav-bar {
@@ -24,7 +36,7 @@
             top: 0;
             left: 0;
             right: 0;
-            background: #000;
+            
             z-index: 1000;
             border-bottom: 1px solid #27272a;
         }
@@ -146,6 +158,12 @@
     </style>
 </head>
 <body>
+    <!-- Background Video -->
+    <video class="background-video" autoplay muted loop>
+        <source src="/vidbg.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+
     <nav class="nav-bar">
         <button class="nav-button active" onclick="showPage('home')">Home</button>
         <button class="nav-button" onclick="showPage('generator')">Art Generator</button>
